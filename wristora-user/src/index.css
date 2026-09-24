@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  /* Soft Luxury Color System */
+  --color-luxury-gold-50: #FAF8F5;
+  --color-luxury-gold-100: #F3ECE0;
+  --color-luxury-gold-200: #E6D8C1;
+  --color-luxury-gold-300: #C5A880; /* Primary Brand Accent Gold */
+  --color-luxury-gold-400: #A38A5F;
+  --color-luxury-gold-500: #88724D;
+  --color-luxury-gold-600: #6D5B3D;
+  --color-luxury-gold-700: #52442E;
+  
+  --color-luxury-cream-50: #FDFDFB;  /* Pure Ivory */
+  --color-luxury-cream-100: #FAF9F6; /* Soft Cream */
+  --color-luxury-cream-200: #F4F1EA; /* Warm Sand Cream */
+  --color-luxury-cream-300: #EAE7E2; /* Muted Cream/Gray */
+
+  --color-luxury-charcoal-50: #F5F5F5;
+  --color-luxury-charcoal-300: #8C8C8C;
+  --color-luxury-charcoal-500: #4A4A4A;
+  --color-luxury-charcoal-800: #2C2C2C;
+  --color-luxury-charcoal-900: #1A1A1A; /* Primary Dark */
+  
+  /* Modern Typography Fonts */
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", "Montserrat", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  *, *::before, *::after {
+    caret-color: transparent;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    caret-color: auto;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  body {
+    @apply bg-luxury-cream-100 text-luxury-charcoal-900 font-sans antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-serif font-medium;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

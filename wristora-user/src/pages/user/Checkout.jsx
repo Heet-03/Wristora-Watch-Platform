@@ -7,7 +7,7 @@ import {
   Zap, 
   Smartphone, 
   QrCode, 
-  Building2, 
+  Building2,
   Truck, 
   ShieldCheck, 
   Tag, 

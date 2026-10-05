@@ -316,3 +316,52 @@ export const mockBrands = [
   { id: 'brand-9', name: 'i-Watch', country: 'California, USA', founded: '2015' }
 ];
 
+export const mockReviews = [
+  {
+    id: 'REV-501',
+    watchId: 'prod-1',
+    watchName: 'Rolex Datejust 41',
+    watchBrand: 'Rolex',
+    watchImage: 'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&q=80&w=400',
+    customerName: 'Julian Vance',
+    customerEmail: 'collector@wristora.com',
+    rating: 5,
+    title: 'Timeless masterpiece with unmatched dial brilliance',
+    comment: 'Exceptional balance and craftsmanship. The fluted bezel catches light effortlessly, and the delivery arrived in a pristine presentation box.',
+    date: '29/08/2026',
+    status: 'Published',
+    verifiedPurchase: true
+  },
+  {
+    id: 'REV-502',
+    watchId: 'prod-2',
+    watchName: 'Omega Speedmaster Professional',
+    watchBrand: 'Omega',
+    watchImage: 'https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?auto=format&fit=crop&q=80&w=400',
+    customerName: 'Aarav Singhania',
+    customerEmail: 'aarav.singhania@heritage.in',
+    rating: 5,
+    title: 'The ultimate space heritage chronograph',
+    comment: 'Winding the Calibre 3861 manual movement every morning is pure meditation. Perfect 42mm wrist presence.',
+    date: '31/08/2026',
+    status: 'Published',
+    verifiedPurchase: true
+  },
+  {
+    id: 'REV-503',
+    watchId: 'prod-7',
+    watchName: 'Apple i-Watch Ultra Titanium Edition',
+    watchBrand: 'i-Watch',
+    watchImage: 'https://images.unsplash.com/photo-1510017803434-a899398421b3?auto=format&fit=crop&q=80&w=400',
+    customerName: 'Devika Mehra',
+    customerEmail: 'devika.mehra@curator.org',
+    rating: 5,
+    title: 'Peak engineering and satellite durability',
+    comment: 'The aerospace titanium casing is incredibly lightweight yet rugged. Action button customization is seamless.',
+    date: '02/09/2026',
+    status: 'Published',
+    verifiedPurchase: true
+  }
+];
+
+

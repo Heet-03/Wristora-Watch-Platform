@@ -14,7 +14,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { mockProducts, mockCategories, mockOrders, mockBrands } from '../utils/mockData';
+import { mockProducts, mockCategories, mockOrders, mockBrands, mockReviews } from '../utils/mockData';
 import { formatDate, getCurrentDateDDMMYYYY } from '../utils/dateFormatter';
 
 /**
@@ -41,53 +41,31 @@ const isFirebaseConfigured = () => {
   return db && apiKey && apiKey !== 'YOUR_FIREBASE_API_KEY' && apiKey.length > 10;
 };
 
-// Seed Local Storage if empty
+// Seed Local Storage if empty or unconfigured
 const initializeLocalStorage = () => {
-  if (!localStorage.getItem(LOCAL_PRODUCTS_KEY)) {
-    localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(mockProducts));
-  }
-  if (!localStorage.getItem(LOCAL_CATEGORIES_KEY)) {
-    localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(mockCategories));
-  }
-  if (!localStorage.getItem(LOCAL_BRANDS_KEY)) {
-    localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(mockBrands));
-  }
-  if (!localStorage.getItem(LOCAL_ORDERS_KEY)) {
-    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(mockOrders));
-  }
-  if (!localStorage.getItem(LOCAL_REVIEWS_KEY)) {
-    localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify([
-      {
-        id: 'REV-501',
-        watchId: 'prod-1',
-        watchName: 'Rolex Datejust 41',
-        watchBrand: 'Rolex',
-        watchImage: 'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&q=80&w=400',
-        customerName: 'Julian Vance',
-        customerEmail: 'collector@wristora.com',
-        rating: 5,
-        title: 'Timeless masterpiece with unmatched dial brilliance',
-        comment: 'Exceptional balance and craftsmanship. The fluted bezel catches light effortlessly, and the delivery arrived in a pristine presentation box.',
-        date: '29/08/2026',
-        status: 'Published',
-        verifiedPurchase: true
-      },
-      {
-        id: 'REV-502',
-        watchId: 'prod-2',
-        watchName: 'Omega Speedmaster Professional',
-        watchBrand: 'Omega',
-        watchImage: 'https://images.unsplash.com/photo-1547996160-71dfabb1a79f?auto=format&fit=crop&q=80&w=400',
-        customerName: 'Aarav Singhania',
-        customerEmail: 'aarav.singhania@heritage.in',
-        rating: 5,
-        title: 'The ultimate space heritage chronograph',
-        comment: 'Winding the Calibre 3861 manual movement every morning is pure meditation. Perfect 42mm wrist presence.',
-        date: '31/08/2026',
-        status: 'Published',
-        verifiedPurchase: true
-      }
-    ]));
+  try {
+    const rawProds = localStorage.getItem(LOCAL_PRODUCTS_KEY);
+    if (!rawProds || rawProds === 'null' || rawProds === '[]') {
+      localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(mockProducts));
+    }
+    const rawCats = localStorage.getItem(LOCAL_CATEGORIES_KEY);
+    if (!rawCats || rawCats === 'null' || rawCats === '[]') {
+      localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(mockCategories));
+    }
+    const rawBrands = localStorage.getItem(LOCAL_BRANDS_KEY);
+    if (!rawBrands || rawBrands === 'null' || rawBrands === '[]') {
+      localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(mockBrands));
+    }
+    const rawOrders = localStorage.getItem(LOCAL_ORDERS_KEY);
+    if (!rawOrders || rawOrders === 'null' || rawOrders === '[]') {
+      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(mockOrders));
+    }
+    const rawReviews = localStorage.getItem(LOCAL_REVIEWS_KEY);
+    if (!rawReviews || rawReviews === 'null' || rawReviews === '[]') {
+      localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(mockReviews));
+    }
+  } catch (err) {
+    console.warn('Error initializing local storage:', err);
   }
 };
 
@@ -114,22 +92,20 @@ export const getProducts = async () => {
     }
   }
 
+  initializeLocalStorage();
   const local = localStorage.getItem(LOCAL_PRODUCTS_KEY);
-  const products = local ? JSON.parse(local) : [...mockProducts];
-
-  // Ensure default mock products (e.g. i-Watch, Patek Philippe) are merged if missing from existing cache
-  const existingIds = new Set(products.map(p => p.id));
-  let modified = false;
-  for (const mp of mockProducts) {
-    if (!existingIds.has(mp.id)) {
-      products.push(mp);
-      modified = true;
-    }
+  if (local === null) {
+    localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(mockProducts));
+    return [...mockProducts];
   }
-  if (modified) {
-    localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(products));
+  try {
+    const parsed = JSON.parse(local);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    if (Array.isArray(parsed) && parsed.length === 0) return parsed; // Respect empty array if user manually deleted all items
+    return [...mockProducts];
+  } catch (e) {
+    return [...mockProducts];
   }
-  return products;
 };
 
 /**
@@ -239,7 +215,16 @@ export const getCategories = async () => {
   }
 
   const local = localStorage.getItem(LOCAL_CATEGORIES_KEY);
-  return local ? JSON.parse(local) : mockCategories;
+  if (local === null) {
+    localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(mockCategories));
+    return [...mockCategories];
+  }
+  try {
+    const parsed = JSON.parse(local);
+    return Array.isArray(parsed) ? parsed : [...mockCategories];
+  } catch (e) {
+    return [...mockCategories];
+  }
 };
 
 /**
@@ -321,21 +306,16 @@ export const getBrands = async () => {
   }
 
   const local = localStorage.getItem(LOCAL_BRANDS_KEY);
-  const brands = local ? JSON.parse(local) : [...mockBrands];
-
-  // Ensure default mock brands (e.g. i-Watch, Patek Philippe) are merged if missing from existing cache
-  const existingNames = new Set(brands.map(b => (b.name || '').toLowerCase().trim()));
-  let modified = false;
-  for (const mb of mockBrands) {
-    if (!existingNames.has(mb.name.toLowerCase().trim())) {
-      brands.push(mb);
-      modified = true;
-    }
+  if (local === null) {
+    localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(mockBrands));
+    return [...mockBrands];
   }
-  if (modified) {
-    localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(brands));
+  try {
+    const parsed = JSON.parse(local);
+    return Array.isArray(parsed) ? parsed : [...mockBrands];
+  } catch (e) {
+    return [...mockBrands];
   }
-  return brands;
 };
 
 /**
@@ -452,7 +432,18 @@ export const getAllOrders = async () => {
 
   if (ordersList.length === 0) {
     const local = localStorage.getItem(LOCAL_ORDERS_KEY);
-    const orders = local ? JSON.parse(local) : mockOrders;
+    let orders = [];
+    if (local === null) {
+      orders = [...mockOrders];
+      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
+    } else {
+      try {
+        const parsed = JSON.parse(local);
+        orders = Array.isArray(parsed) ? parsed : [...mockOrders];
+      } catch (e) {
+        orders = [...mockOrders];
+      }
+    }
     ordersList = orders.map(o => ({
       ...o,
       date: formatDate(o.date || o.createdAt)
@@ -673,7 +664,18 @@ export const getAllReviews = async () => {
   }
 
   const local = localStorage.getItem(LOCAL_REVIEWS_KEY);
-  const reviews = local ? JSON.parse(local) : [];
+  let reviews = [];
+  if (local === null) {
+    reviews = [...mockReviews];
+    localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(reviews));
+  } else {
+    try {
+      const parsed = JSON.parse(local);
+      reviews = Array.isArray(parsed) ? parsed : [...mockReviews];
+    } catch (e) {
+      reviews = [...mockReviews];
+    }
+  }
   return reviews.map(r => ({
     ...r,
     date: formatDate(r.date)

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { 
@@ -10,10 +10,12 @@ import {
   Star, 
   Settings, 
   LogOut, 
-  Bell, 
+  Calendar as CalendarIcon, 
   Search, 
   Menu, 
-  X
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 /**
@@ -21,14 +23,63 @@ import {
  * 
  * Implements the professional admin sidebar shell matching the layout mockups.
  * Includes a dark sidebar with responsive state toggle, active navigation states,
- * and a header displaying notifications, date range mockups, and quick profiles.
+ * and an executive header displaying live calendar highlight with month navigation.
  */
 function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logoutUser } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const calendarRef = useRef(null);
+
+  const today = new Date();
+  const currentDay = today.getDate();
+  const currentMonthIdx = today.getMonth();
+  const currentYear = today.getFullYear();
+
+  const [viewYear, setViewYear] = useState(currentYear);
+  const [viewMonth, setViewMonth] = useState(currentMonthIdx);
+
+  // Close calendar popover on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (calendarRef.current && !calendarRef.current.contains(e.target)) {
+        setShowCalendar(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handlePrevMonth = () => {
+    setViewMonth((prev) => {
+      if (prev === 0) {
+        setViewYear((y) => y - 1);
+        return 11;
+      }
+      return prev - 1;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setViewMonth((prev) => {
+      if (prev === 11) {
+        setViewYear((y) => y + 1);
+        return 0;
+      }
+      return prev + 1;
+    });
+  };
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const formattedHeaderDate = `${dayNames[today.getDay()].slice(0, 3)}, ${currentDay} ${monthNames[currentMonthIdx].slice(0, 3)} ${currentYear}`;
+
+  // Mini calendar generator for navigated month
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
 
   const menuItems = [
     { name: 'Dashboard', path: '/admin', icon: LayoutDashboard },
@@ -45,7 +96,6 @@ function AdminLayout() {
     if (location.pathname === '/admin') return 'Dashboard Overview';
     const segment = location.pathname.split('/').pop();
     if (!segment) return 'Admin Control';
-    // Capitalize and format path
     return segment.charAt(0).toUpperCase() + segment.slice(1);
   };
 
@@ -151,30 +201,93 @@ function AdminLayout() {
             </h1>
           </div>
           
-          {/* Quick Actions (Notifications, Avatar) */}
+          {/* Quick Actions (Calendar Highlight Widget, Profile Avatar) */}
           <div className="flex items-center space-x-4 md:space-x-6">
 
-            {/* Notifications panel */}
-            <div className="relative">
+            {/* Calendar Highlight Widget */}
+            <div className="relative" ref={calendarRef}>
               <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="relative p-2 text-luxury-charcoal-800 hover:text-luxury-gold-400 transition-colors cursor-pointer"
+                type="button"
+                onClick={() => setShowCalendar(!showCalendar)}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-white border border-luxury-cream-300 rounded-xl hover:border-luxury-gold-400 transition-all cursor-pointer shadow-2xs text-luxury-charcoal-900"
+                title="Executive Calendar & Current Date Tracker"
               >
-                <Bell size={18} />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-luxury-gold-300 rounded-full border border-luxury-cream-50"></span>
+                <CalendarIcon size={15} className="text-luxury-gold-600" />
+                <span className="text-xs font-mono font-bold tracking-tight">
+                  {formattedHeaderDate}
+                </span>
               </button>
 
-              {showNotifications && (
-                <div className="absolute right-0 mt-3 w-80 bg-luxury-cream-50 rounded border border-luxury-cream-200 shadow-2xl p-4 z-50 text-left">
-                  <div className="flex justify-between items-center pb-2 border-b border-luxury-cream-200 mb-2">
-                    <span className="text-xs font-bold uppercase tracking-wider text-luxury-charcoal-900">Notifications</span>
-                    <button onClick={() => setShowNotifications(false)} className="text-[10px] uppercase font-bold text-luxury-gold-400 hover:underline">Clear</button>
-                  </div>
-                  <div className="space-y-3 max-h-60 overflow-y-auto">
-                    <div className="p-2 bg-luxury-cream-200 rounded border border-luxury-cream-300 text-xs">
-                      <p className="font-semibold text-luxury-charcoal-900">🔔 System Setup Success</p>
-                      <p className="text-[10px] text-luxury-charcoal-500 mt-0.5">Vite project architecture complete</p>
+              {/* Calendar Popover modal highlighting current date & month navigation */}
+              {showCalendar && (
+                <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl border border-luxury-cream-300 shadow-2xl p-4 z-50 text-left font-sans space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-luxury-cream-200">
+                    <div className="flex items-center space-x-1">
+                      <button 
+                        type="button"
+                        onClick={handlePrevMonth}
+                        className="p-1 text-luxury-charcoal-600 hover:text-luxury-charcoal-900 hover:bg-luxury-cream-200 rounded-md transition-colors cursor-pointer"
+                        title="Previous Month"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span className="text-xs font-serif font-bold text-luxury-charcoal-900 min-w-[105px] text-center">
+                        {monthNames[viewMonth]} {viewYear}
+                      </span>
+                      <button 
+                        type="button"
+                        onClick={handleNextMonth}
+                        className="p-1 text-luxury-charcoal-600 hover:text-luxury-charcoal-900 hover:bg-luxury-cream-200 rounded-md transition-colors cursor-pointer"
+                        title="Next Month"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
+
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setViewYear(currentYear);
+                        setViewMonth(currentMonthIdx);
+                      }}
+                      className="text-[10px] font-mono font-bold px-2 py-0.5 bg-luxury-gold-100 text-luxury-gold-900 hover:bg-luxury-gold-200 rounded-md uppercase cursor-pointer transition-colors"
+                      title="Jump to Today"
+                    >
+                      Today: {currentDay}
+                    </button>
+                  </div>
+
+                  {/* Weekday headers */}
+                  <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-luxury-charcoal-400 uppercase tracking-wider">
+                    <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                  </div>
+
+                  {/* Days grid */}
+                  <div className="grid grid-cols-7 gap-1 text-center text-xs font-mono">
+                    {/* Blank offset days */}
+                    {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                      <div key={`blank-${i}`} className="h-7" />
+                    ))}
+
+                    {/* Days in navigated month */}
+                    {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((dayNum) => {
+                      const isToday = 
+                        dayNum === currentDay && 
+                        viewMonth === currentMonthIdx && 
+                        viewYear === currentYear;
+                      return (
+                        <div
+                          key={dayNum}
+                          className={`h-7 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
+                            isToday
+                              ? 'bg-luxury-charcoal-900 text-luxury-gold-300 shadow-md ring-2 ring-luxury-gold-400 scale-105'
+                              : 'text-luxury-charcoal-800 hover:bg-luxury-cream-100'
+                          }`}
+                        >
+                          {dayNum}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

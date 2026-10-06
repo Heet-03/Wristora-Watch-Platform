@@ -21,7 +21,7 @@ import Input from '../../components/common/Input';
 import Modal from '../../components/common/Modal';
 import EmptyState from '../../components/common/EmptyState';
 import Loader from '../../components/common/Loader';
-import { getProducts, updateProduct, deleteProduct, getBrands, getCategories } from '../../firebase/dbService';
+import { getProducts, updateProduct, deleteProduct, getBrands, getCategories, subscribeToProducts, subscribeToBrands, subscribeToCategories } from '../../firebase/dbService';
 
 /**
  * AdminProducts Component (Mockup 14)
@@ -87,31 +87,34 @@ function AdminProducts() {
   const [productToDelete, setProductToDelete] = useState(null);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Fetch live products, brands, and categories
+  // Fetch live products, brands, and categories with real-time updates
   useEffect(() => {
-    const fetchCatalog = async () => {
-      try {
-        const [data, brandData, catData] = await Promise.all([
-          getProducts(),
-          getBrands(),
-          getCategories()
-        ]);
-        setProducts(data || []);
-        if (brandData && brandData.length > 0) {
-          const bNames = brandData.map(b => typeof b === 'string' ? b : b.name).filter(Boolean);
-          setRegisteredBrands(bNames);
-        }
-        if (catData && catData.length > 0) {
-          const cNames = catData.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
-          setRegisteredCategories(cNames);
-        }
-      } catch (err) {
-        console.error('Error fetching admin products catalog:', err);
-      } finally {
-        setIsLoading(false);
+    setIsLoading(true);
+
+    const unsubProducts = subscribeToProducts((data) => {
+      setProducts(data || []);
+      setIsLoading(false);
+    });
+
+    const unsubBrands = subscribeToBrands((brandData) => {
+      if (brandData && brandData.length > 0) {
+        const bNames = brandData.map(b => typeof b === 'string' ? b : b.name).filter(Boolean);
+        setRegisteredBrands(bNames);
       }
+    });
+
+    const unsubCats = subscribeToCategories((catData) => {
+      if (catData && catData.length > 0) {
+        const cNames = catData.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
+        setRegisteredCategories(cNames);
+      }
+    });
+
+    return () => {
+      if (typeof unsubProducts === 'function') unsubProducts();
+      if (typeof unsubBrands === 'function') unsubBrands();
+      if (typeof unsubCats === 'function') unsubCats();
     };
-    fetchCatalog();
   }, []);
 
   const brands = ['All', ...new Set([

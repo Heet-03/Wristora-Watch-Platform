@@ -19,7 +19,7 @@ import {
 import Button from '../../components/common/Button';
 import EmptyState from '../../components/common/EmptyState';
 import Loader from '../../components/common/Loader';
-import { getProducts, getCategories, getStoreSettings, defaultHeroImages, subscribeToReviews } from '../../firebase/dbService';
+import { getProducts, getCategories, getStoreSettings, defaultHeroImages, subscribeToReviews, subscribeToProducts, subscribeToCategories } from '../../firebase/dbService';
 import { formatDate } from '../../utils/dateFormatter';
 
 // Fallback curated collector reviews in case fewer than 3 live reviews exist in database
@@ -231,30 +231,30 @@ function Home() {
     return () => clearInterval(interval);
   }, [heroImages.length]);
 
-  // Fetch live products, categories, and dynamic hero banner images from database
+  // Fetch live products, categories, and dynamic hero banner images from database with real-time updates
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [prods, cats, settings] = await Promise.all([
-          getProducts(),
-          getCategories(),
-          getStoreSettings().catch(() => null)
-        ]);
-        setProducts(prods || []);
-        setCategories(cats || []);
-        if (settings?.heroImages && Array.isArray(settings.heroImages) && settings.heroImages.length > 0) {
-          const valid = settings.heroImages.filter(url => typeof url === 'string' && url.trim().length > 0);
-          if (valid.length > 0) {
-            setHeroImages(valid);
-          }
+    getStoreSettings().then(settings => {
+      if (settings?.heroImages && Array.isArray(settings.heroImages) && settings.heroImages.length > 0) {
+        const valid = settings.heroImages.filter(url => typeof url === 'string' && url.trim().length > 0);
+        if (valid.length > 0) {
+          setHeroImages(valid);
         }
-      } catch (err) {
-        console.error('Error loading storefront home data:', err);
-      } finally {
-        setIsLoading(false);
       }
+    }).catch(() => null);
+
+    const unsubProducts = subscribeToProducts((prods) => {
+      setProducts(prods || []);
+      setIsLoading(false);
+    });
+
+    const unsubCategories = subscribeToCategories((cats) => {
+      setCategories(cats || []);
+    });
+
+    return () => {
+      if (typeof unsubProducts === 'function') unsubProducts();
+      if (typeof unsubCategories === 'function') unsubCategories();
     };
-    fetchData();
   }, []);
 
   // Subscribe to live collector reviews from Firestore with real-time updates

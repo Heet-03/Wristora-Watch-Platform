@@ -5,7 +5,7 @@ import { useCart } from '../../context/CartContext';
 import Button from '../../components/common/Button';
 import EmptyState from '../../components/common/EmptyState';
 import Loader from '../../components/common/Loader';
-import { getProducts, getCategories, getBrands } from '../../firebase/dbService';
+import { getProducts, getCategories, getBrands, subscribeToProducts, subscribeToBrands, subscribeToCategories } from '../../firebase/dbService';
 
 /**
  * Shop Page Component
@@ -51,37 +51,40 @@ function Shop() {
     };
   }, [isFilterOpen]);
 
-  // Load products, brands, and categories from database
+  // Load products, brands, and categories from database with real-time updates
   useEffect(() => {
-    const fetchCatalog = async () => {
-      try {
-        const [data, brandData, catData] = await Promise.all([
-          getProducts(),
-          getBrands(),
-          getCategories()
-        ]);
-        const catalog = data || [];
-        setProducts(catalog);
-        if (brandData && brandData.length > 0) {
-          const bNames = brandData.map(b => typeof b === 'string' ? b : b.name).filter(Boolean);
-          setRegisteredBrands(bNames);
-        }
-        if (catData && catData.length > 0) {
-          const cNames = catData.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
-          setRegisteredCategories(cNames);
-        }
-        if (catalog.length > 0) {
-          const maxP = Math.max(...catalog.map(p => Number(p.discountPrice || p.price || 0)));
-          const dynamicCeiling = Math.max(10000000, Math.ceil(maxP / 1000000) * 1000000);
-          setMaxPrice(dynamicCeiling);
-        }
-      } catch (err) {
-        console.error('Failed fetching shop catalog:', err);
-      } finally {
-        setIsLoading(false);
+    setIsLoading(true);
+
+    const unsubProducts = subscribeToProducts((prods) => {
+      const catalog = prods || [];
+      setProducts(catalog);
+      if (catalog.length > 0) {
+        const maxP = Math.max(...catalog.map(p => Number(p.discountPrice || p.price || 0)));
+        const dynamicCeiling = Math.max(10000000, Math.ceil(maxP / 1000000) * 1000000);
+        setMaxPrice(dynamicCeiling);
       }
+      setIsLoading(false);
+    });
+
+    const unsubBrands = subscribeToBrands((brandData) => {
+      if (brandData && brandData.length > 0) {
+        const bNames = brandData.map(b => typeof b === 'string' ? b : b.name).filter(Boolean);
+        setRegisteredBrands(bNames);
+      }
+    });
+
+    const unsubCats = subscribeToCategories((catData) => {
+      if (catData && catData.length > 0) {
+        const cNames = catData.map(c => typeof c === 'string' ? c : c.name).filter(Boolean);
+        setRegisteredCategories(cNames);
+      }
+    });
+
+    return () => {
+      if (typeof unsubProducts === 'function') unsubProducts();
+      if (typeof unsubBrands === 'function') unsubBrands();
+      if (typeof unsubCats === 'function') unsubCats();
     };
-    fetchCatalog();
   }, []);
 
   // Sync URL search queries (e.g. from navbar searches, home categories, or brand showcase)

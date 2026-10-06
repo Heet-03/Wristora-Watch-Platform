@@ -35,6 +35,19 @@ const LOCAL_USERS_KEY = 'wristora_db_users';
 const LOCAL_USERS_OVERRIDES_KEY = 'wristora_db_user_overrides';
 const LOCAL_SETTINGS_KEY = 'wristora_db_settings';
 
+// Cross-window BroadcastChannel for local synchronization across ports (5173 / 5174)
+const syncChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('wristora_db_sync_channel') : null;
+
+const notifySyncListeners = (type, data) => {
+  if (syncChannel) {
+    try {
+      syncChannel.postMessage({ type, data, timestamp: Date.now() });
+    } catch (err) {
+      console.warn('BroadcastChannel sync error:', err);
+    }
+  }
+};
+
 // Helper: Check if Firebase is properly configured
 const isFirebaseConfigured = () => {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
@@ -109,11 +122,9 @@ export const getProducts = async () => {
     try {
       const q = query(collection(db, 'products'));
       const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const firestoreProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(firestoreProducts));
-        return firestoreProducts;
-      }
+      const firestoreProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(firestoreProducts));
+      return firestoreProducts;
     } catch (err) {
       console.warn('Firestore getProducts error, using local fallback:', err);
     }
@@ -128,6 +139,50 @@ export const getProducts = async () => {
     } catch (e) {}
   }
   return [];
+};
+
+/**
+ * Real-time listener for products (subscribes to Firestore updates or local broadcast fallback)
+ */
+export const subscribeToProducts = (callback) => {
+  let unsubscribeFirestore = null;
+
+  if (isFirebaseConfigured()) {
+    try {
+      const q = query(collection(db, 'products'));
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore subscribeToProducts warning:', err);
+        getProducts().then(callback);
+      });
+    } catch (err) {
+      console.warn('Firestore subscribeToProducts error:', err);
+    }
+  }
+
+  if (!unsubscribeFirestore) {
+    getProducts().then(callback);
+  }
+
+  const handleBroadcast = (event) => {
+    if (event.data?.type === 'PRODUCTS_UPDATED') {
+      getProducts().then(callback);
+    }
+  };
+
+  if (syncChannel) {
+    syncChannel.addEventListener('message', handleBroadcast);
+  }
+
+  return () => {
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    if (syncChannel) {
+      syncChannel.removeEventListener('message', handleBroadcast);
+    }
+  };
 };
 
 /**
@@ -174,6 +229,7 @@ export const addProduct = async (productData) => {
   const products = await getProducts();
   const updated = [completeProduct, ...products.filter(p => p.id !== newId)];
   localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(updated));
+  notifySyncListeners('PRODUCTS_UPDATED', completeProduct);
   return completeProduct;
 };
 
@@ -193,6 +249,7 @@ export const updateProduct = async (id, updateData) => {
   const products = await getProducts();
   const updated = products.map(p => p.id === id ? { ...p, ...updateData } : p);
   localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(updated));
+  notifySyncListeners('PRODUCTS_UPDATED', { id, ...updateData });
   return updated.find(p => p.id === id);
 };
 
@@ -211,6 +268,7 @@ export const deleteProduct = async (id) => {
   const products = await getProducts();
   const updated = products.filter(p => p.id !== id);
   localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(updated));
+  notifySyncListeners('PRODUCTS_UPDATED', { id, deleted: true });
   return true;
 };
 
@@ -225,9 +283,9 @@ export const getCategories = async () => {
   if (isFirebaseConfigured()) {
     try {
       const snapshot = await getDocs(collection(db, 'categories'));
-      if (!snapshot.empty) {
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      }
+      const firestoreCategories = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(firestoreCategories));
+      return firestoreCategories;
     } catch (err) {
       console.warn('Firestore getCategories error, using local fallback:', err);
     }
@@ -247,6 +305,50 @@ export const getCategories = async () => {
 };
 
 /**
+ * Real-time listener for categories (subscribes to Firestore updates or local broadcast fallback)
+ */
+export const subscribeToCategories = (callback) => {
+  let unsubscribeFirestore = null;
+
+  if (isFirebaseConfigured()) {
+    try {
+      const q = query(collection(db, 'categories'));
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore subscribeToCategories warning:', err);
+        getCategories().then(callback);
+      });
+    } catch (err) {
+      console.warn('Firestore subscribeToCategories error:', err);
+    }
+  }
+
+  if (!unsubscribeFirestore) {
+    getCategories().then(callback);
+  }
+
+  const handleBroadcast = (event) => {
+    if (event.data?.type === 'CATEGORIES_UPDATED') {
+      getCategories().then(callback);
+    }
+  };
+
+  if (syncChannel) {
+    syncChannel.addEventListener('message', handleBroadcast);
+  }
+
+  return () => {
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    if (syncChannel) {
+      syncChannel.removeEventListener('message', handleBroadcast);
+    }
+  };
+};
+
+/**
  * Add a new category
  */
 export const addCategory = async (categoryData) => {
@@ -256,7 +358,6 @@ export const addCategory = async (categoryData) => {
   if (isFirebaseConfigured()) {
     try {
       await setDoc(doc(db, 'categories', newId), completeCategory);
-      return completeCategory;
     } catch (err) {
       console.warn('Firestore addCategory error, using local fallback:', err);
     }
@@ -265,6 +366,7 @@ export const addCategory = async (categoryData) => {
   const categories = await getCategories();
   const updated = [...categories, completeCategory];
   localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(updated));
+  notifySyncListeners('CATEGORIES_UPDATED', completeCategory);
   return completeCategory;
 };
 
@@ -275,7 +377,6 @@ export const deleteCategory = async (id) => {
   if (isFirebaseConfigured()) {
     try {
       await deleteDoc(doc(db, 'categories', id));
-      return true;
     } catch (err) {
       console.warn('Firestore deleteCategory error, using local fallback:', err);
     }
@@ -284,6 +385,7 @@ export const deleteCategory = async (id) => {
   const categories = await getCategories();
   const updated = categories.filter(c => c.id !== id);
   localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(updated));
+  notifySyncListeners('CATEGORIES_UPDATED', { id, deleted: true });
   return true;
 };
 
@@ -302,6 +404,7 @@ export const updateCategory = async (id, categoryData) => {
   const categories = await getCategories();
   const updated = categories.map(c => c.id === id ? { ...c, ...categoryData } : c);
   localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(updated));
+  notifySyncListeners('CATEGORIES_UPDATED', { id, ...categoryData });
   return updated.find(c => c.id === id);
 };
 
@@ -316,9 +419,9 @@ export const getBrands = async () => {
   if (isFirebaseConfigured()) {
     try {
       const snapshot = await getDocs(collection(db, 'brands'));
-      if (!snapshot.empty) {
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      }
+      const firestoreBrands = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(firestoreBrands));
+      return firestoreBrands;
     } catch (err) {
       console.warn('Firestore getBrands error, using local fallback:', err);
     }
@@ -338,6 +441,50 @@ export const getBrands = async () => {
 };
 
 /**
+ * Real-time listener for brands (subscribes to Firestore updates or local broadcast fallback)
+ */
+export const subscribeToBrands = (callback) => {
+  let unsubscribeFirestore = null;
+
+  if (isFirebaseConfigured()) {
+    try {
+      const q = query(collection(db, 'brands'));
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore subscribeToBrands warning:', err);
+        getBrands().then(callback);
+      });
+    } catch (err) {
+      console.warn('Firestore subscribeToBrands error:', err);
+    }
+  }
+
+  if (!unsubscribeFirestore) {
+    getBrands().then(callback);
+  }
+
+  const handleBroadcast = (event) => {
+    if (event.data?.type === 'BRANDS_UPDATED') {
+      getBrands().then(callback);
+    }
+  };
+
+  if (syncChannel) {
+    syncChannel.addEventListener('message', handleBroadcast);
+  }
+
+  return () => {
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    if (syncChannel) {
+      syncChannel.removeEventListener('message', handleBroadcast);
+    }
+  };
+};
+
+/**
  * Add a new brand to database
  */
 export const addBrand = async (brandData) => {
@@ -347,7 +494,6 @@ export const addBrand = async (brandData) => {
   if (isFirebaseConfigured()) {
     try {
       await setDoc(doc(db, 'brands', newId), completeBrand);
-      return completeBrand;
     } catch (err) {
       console.warn('Firestore addBrand error, using local fallback:', err);
     }
@@ -362,6 +508,7 @@ export const addBrand = async (brandData) => {
     updated = [...brands, completeBrand];
   }
   localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(updated));
+  notifySyncListeners('BRANDS_UPDATED', completeBrand);
   return completeBrand;
 };
 
@@ -380,6 +527,7 @@ export const deleteBrand = async (brandIdOrName) => {
   const brands = await getBrands();
   const updated = brands.filter(b => b.id !== brandIdOrName && b.name.toLowerCase() !== String(brandIdOrName).toLowerCase());
   localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(updated));
+  notifySyncListeners('BRANDS_UPDATED', { id: brandIdOrName, deleted: true });
   return true;
 };
 
@@ -430,44 +578,49 @@ export const getOrderTimestamp = (order) => {
  * Fetch all orders (Admin / Sync view) sorted newest-first
  */
 export const getAllOrders = async () => {
-  let ordersList = [];
   if (isFirebaseConfigured()) {
     try {
       const snapshot = await getDocs(collection(db, 'orders'));
-      if (!snapshot.empty) {
-        ordersList = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            date: formatDate(data.date || data.createdAt)
-          };
-        });
-      }
+      const ordersList = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: formatDate(data.date || data.createdAt)
+        };
+      });
+      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(ordersList));
+      return ordersList.sort((a, b) => {
+        const timeA = getOrderTimestamp(a);
+        const timeB = getOrderTimestamp(b);
+        if (timeA !== timeB) return timeB - timeA;
+        const numA = String(a.id || '').replace(/\D/g, '');
+        const numB = String(b.id || '').replace(/\D/g, '');
+        if (numA && numB) return parseInt(numB, 10) - parseInt(numA, 10);
+        return 0;
+      });
     } catch (err) {
       console.warn('Firestore getAllOrders error, using local fallback:', err);
     }
   }
 
-  if (ordersList.length === 0) {
-    const local = localStorage.getItem(LOCAL_ORDERS_KEY);
-    let orders = [];
-    if (local === null) {
+  const local = localStorage.getItem(LOCAL_ORDERS_KEY);
+  let orders = [];
+  if (local === null) {
+    orders = [];
+    localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
+  } else {
+    try {
+      const parsed = JSON.parse(local);
+      orders = Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
       orders = [];
-      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
-    } else {
-      try {
-        const parsed = JSON.parse(local);
-        orders = Array.isArray(parsed) ? parsed : [];
-      } catch (e) {
-        orders = [];
-      }
     }
-    ordersList = orders.map(o => ({
-      ...o,
-      date: formatDate(o.date || o.createdAt)
-    }));
   }
+  const ordersList = orders.map(o => ({
+    ...o,
+    date: formatDate(o.date || o.createdAt)
+  }));
 
   return ordersList.sort((a, b) => {
     const timeA = getOrderTimestamp(a);
@@ -478,6 +631,65 @@ export const getAllOrders = async () => {
     if (numA && numB) return parseInt(numB, 10) - parseInt(numA, 10);
     return 0;
   });
+};
+
+/**
+ * Real-time listener for orders (subscribes to Firestore updates or local broadcast fallback)
+ */
+export const subscribeToOrders = (callback) => {
+  let unsubscribeFirestore = null;
+
+  if (isFirebaseConfigured()) {
+    try {
+      const q = query(collection(db, 'orders'));
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+            date: formatDate(data.date || data.createdAt)
+          };
+        }).sort((a, b) => {
+          const timeA = getOrderTimestamp(a);
+          const timeB = getOrderTimestamp(b);
+          if (timeA !== timeB) return timeB - timeA;
+          const numA = String(a.id || '').replace(/\D/g, '');
+          const numB = String(b.id || '').replace(/\D/g, '');
+          if (numA && numB) return parseInt(numB, 10) - parseInt(numA, 10);
+          return 0;
+        });
+        localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(list));
+        callback(list);
+      }, (err) => {
+        console.warn('Firestore subscribeToOrders warning:', err);
+        getAllOrders().then(callback);
+      });
+    } catch (err) {
+      console.warn('Firestore subscribeToOrders error:', err);
+    }
+  }
+
+  if (!unsubscribeFirestore) {
+    getAllOrders().then(callback);
+  }
+
+  const handleBroadcast = (event) => {
+    if (event.data?.type === 'ORDERS_UPDATED') {
+      getAllOrders().then(callback);
+    }
+  };
+
+  if (syncChannel) {
+    syncChannel.addEventListener('message', handleBroadcast);
+  }
+
+  return () => {
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    if (syncChannel) {
+      syncChannel.removeEventListener('message', handleBroadcast);
+    }
+  };
 };
 
 /**
@@ -547,6 +759,7 @@ export const createOrder = async (orderData) => {
     }
   }
 
+  notifySyncListeners('ORDERS_UPDATED', completeOrder);
   return completeOrder;
 };
 
@@ -582,6 +795,7 @@ export const updateOrderStatus = async (orderId, status) => {
   if (isFirebaseConfigured()) {
     try {
       await updateDoc(doc(db, 'orders', orderId), { status });
+      notifySyncListeners('ORDERS_UPDATED', { id: orderId, status });
       return true;
     } catch (err) {
       console.warn('Firestore updateOrderStatus error, using local fallback:', err);
@@ -590,6 +804,7 @@ export const updateOrderStatus = async (orderId, status) => {
 
   const updated = orders.map(o => o.id === orderId ? { ...o, status } : o);
   localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(updated));
+  notifySyncListeners('ORDERS_UPDATED', { id: orderId, status });
   return true;
 };
 
@@ -667,16 +882,16 @@ export const getAllReviews = async () => {
   if (isFirebaseConfigured()) {
     try {
       const snapshot = await getDocs(collection(db, 'reviews'));
-      if (!snapshot.empty) {
-        return snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            date: formatDate(data.date)
-          };
-        });
-      }
+      const reviewsList = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          date: formatDate(data.date)
+        };
+      });
+      localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(reviewsList));
+      return reviewsList;
     } catch (err) {
       console.warn('Firestore getAllReviews error, using local fallback:', err);
     }
@@ -702,13 +917,15 @@ export const getAllReviews = async () => {
 };
 
 /**
- * Real-time listener for reviews (subscribes to Firestore updates or local fallback)
+ * Real-time listener for reviews (subscribes to Firestore updates or local broadcast fallback)
  */
 export const subscribeToReviews = (callback) => {
+  let unsubscribeFirestore = null;
+
   if (isFirebaseConfigured()) {
     try {
       const q = query(collection(db, 'reviews'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      unsubscribeFirestore = onSnapshot(q, (snapshot) => {
         const list = snapshot.docs.map(doc => {
           const data = doc.data();
           return {
@@ -717,19 +934,37 @@ export const subscribeToReviews = (callback) => {
             date: formatDate(data.date)
           };
         });
+        localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(list));
         callback(list);
       }, (err) => {
         console.warn('Firestore reviews subscription error:', err);
+        getAllReviews().then(callback);
       });
-      return unsubscribe;
     } catch (err) {
       console.warn('Error setting up reviews listener:', err);
     }
   }
 
-  // Local fallback if Firebase not configured
-  getAllReviews().then(callback);
-  return () => {};
+  if (!unsubscribeFirestore) {
+    getAllReviews().then(callback);
+  }
+
+  const handleBroadcast = (event) => {
+    if (event.data?.type === 'REVIEWS_UPDATED') {
+      getAllReviews().then(callback);
+    }
+  };
+
+  if (syncChannel) {
+    syncChannel.addEventListener('message', handleBroadcast);
+  }
+
+  return () => {
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    if (syncChannel) {
+      syncChannel.removeEventListener('message', handleBroadcast);
+    }
+  };
 };
 
 /**
@@ -752,7 +987,6 @@ export const addReview = async (reviewData) => {
   if (isFirebaseConfigured()) {
     try {
       await setDoc(doc(db, 'reviews', newId), completeReview);
-      return completeReview;
     } catch (err) {
       console.warn('Firestore addReview error, using local fallback:', err);
     }
@@ -761,6 +995,7 @@ export const addReview = async (reviewData) => {
   const reviews = await getAllReviews();
   const updated = [completeReview, ...reviews];
   localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(updated));
+  notifySyncListeners('REVIEWS_UPDATED', completeReview);
   return completeReview;
 };
 
@@ -771,7 +1006,6 @@ export const updateReviewStatus = async (reviewId, status) => {
   if (isFirebaseConfigured()) {
     try {
       await updateDoc(doc(db, 'reviews', reviewId), { status });
-      return true;
     } catch (err) {
       console.warn('Firestore updateReviewStatus error, using local fallback:', err);
     }
@@ -780,6 +1014,7 @@ export const updateReviewStatus = async (reviewId, status) => {
   const reviews = await getAllReviews();
   const updated = reviews.map(r => r.id === reviewId ? { ...r, status } : r);
   localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(updated));
+  notifySyncListeners('REVIEWS_UPDATED', { id: reviewId, status });
   return true;
 };
 
@@ -798,6 +1033,7 @@ export const deleteReview = async (reviewId) => {
   const reviews = await getAllReviews();
   const updated = reviews.filter(r => r.id !== reviewId);
   localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(updated));
+  notifySyncListeners('REVIEWS_UPDATED', { id: reviewId, deleted: true });
   return true;
 };
 
@@ -934,17 +1170,23 @@ export const getAllUsers = async () => {
   }
 
   const overrides = JSON.parse(localStorage.getItem(LOCAL_USERS_OVERRIDES_KEY) || '{}');
-  const userList = Array.from(usersMap.values()).map(user => {
+  const userList = await Promise.all(Array.from(usersMap.values()).map(async (user) => {
     const override = overrides[user.id] || (user.uid ? overrides[user.uid] : null) || (user.email ? overrides[user.email.toLowerCase()] : null);
+    const wallet = await getUserWallet(user.uid || user.id, user.email);
+    const combined = {
+      ...user,
+      walletBalance: wallet.balance || 0,
+      walletTransactions: wallet.transactions || []
+    };
     if (override) {
       return {
-        ...user,
+        ...combined,
         ...(override.role ? { role: override.role } : {}),
         ...(override.status ? { status: override.status } : {})
       };
     }
-    return user;
-  });
+    return combined;
+  }));
 
   return userList;
 };

@@ -44,25 +44,20 @@ const isFirebaseConfigured = () => {
 // Seed Local Storage if empty or unconfigured
 const initializeLocalStorage = () => {
   try {
-    const rawProds = localStorage.getItem(LOCAL_PRODUCTS_KEY);
-    if (!rawProds || rawProds === 'null' || rawProds === '[]') {
-      localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(mockProducts));
+    if (localStorage.getItem(LOCAL_PRODUCTS_KEY) === null) {
+      localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify([]));
     }
-    const rawCats = localStorage.getItem(LOCAL_CATEGORIES_KEY);
-    if (!rawCats || rawCats === 'null' || rawCats === '[]') {
-      localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(mockCategories));
+    if (localStorage.getItem(LOCAL_CATEGORIES_KEY) === null) {
+      localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify([]));
     }
-    const rawBrands = localStorage.getItem(LOCAL_BRANDS_KEY);
-    if (!rawBrands || rawBrands === 'null' || rawBrands === '[]') {
-      localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(mockBrands));
+    if (localStorage.getItem(LOCAL_BRANDS_KEY) === null) {
+      localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify([]));
     }
-    const rawOrders = localStorage.getItem(LOCAL_ORDERS_KEY);
-    if (!rawOrders || rawOrders === 'null' || rawOrders === '[]') {
-      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(mockOrders));
+    if (localStorage.getItem(LOCAL_ORDERS_KEY) === null) {
+      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify([]));
     }
-    const rawReviews = localStorage.getItem(LOCAL_REVIEWS_KEY);
-    if (!rawReviews || rawReviews === 'null' || rawReviews === '[]') {
-      localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(mockReviews));
+    if (localStorage.getItem(LOCAL_REVIEWS_KEY) === null) {
+      localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify([]));
     }
   } catch (err) {
     console.warn('Error initializing local storage:', err);
@@ -71,6 +66,36 @@ const initializeLocalStorage = () => {
 
 // Auto-run local storage initialization
 initializeLocalStorage();
+
+/**
+ * Completely wipe all products, categories, brands, orders, and reviews
+ * for a clean client handover.
+ */
+export const clearAllDatabaseData = async () => {
+  localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify([]));
+  localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify([]));
+  localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify([]));
+  localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify([]));
+  localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify([]));
+  localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify([]));
+  localStorage.setItem(LOCAL_USERS_OVERRIDES_KEY, JSON.stringify([]));
+  localStorage.removeItem('wristora_cart');
+  localStorage.removeItem('wristora_direct_buy');
+
+  if (isFirebaseConfigured()) {
+    const collectionsToClear = ['products', 'categories', 'brands', 'orders', 'reviews'];
+    for (const colName of collectionsToClear) {
+      try {
+        const snapshot = await getDocs(collection(db, colName));
+        const deletePromises = snapshot.docs.map(docSnap => deleteDoc(doc(db, colName, docSnap.id)));
+        await Promise.all(deletePromises);
+      } catch (err) {
+        console.warn(`Firestore wipe error on ${colName}:`, err);
+      }
+    }
+  }
+  return true;
+};
 
 /* ==========================================================================
    1. PRODUCTS CRUD OPERATIONS
@@ -97,16 +122,14 @@ export const getProducts = async () => {
   initializeLocalStorage();
   const local = localStorage.getItem(LOCAL_PRODUCTS_KEY);
   if (local === null) {
-    localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(mockProducts));
-    return [...mockProducts];
+    localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify([]));
+    return [];
   }
   try {
     const parsed = JSON.parse(local);
-    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    if (Array.isArray(parsed) && parsed.length === 0) return parsed; // Respect empty array if user manually deleted all items
-    return [...mockProducts];
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return [...mockProducts];
+    return [];
   }
 };
 
@@ -215,14 +238,14 @@ export const getCategories = async () => {
 
   const local = localStorage.getItem(LOCAL_CATEGORIES_KEY);
   if (local === null) {
-    localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(mockCategories));
-    return [...mockCategories];
+    localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify([]));
+    return [];
   }
   try {
     const parsed = JSON.parse(local);
-    return Array.isArray(parsed) ? parsed : [...mockCategories];
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return [...mockCategories];
+    return [];
   }
 };
 
@@ -306,14 +329,14 @@ export const getBrands = async () => {
 
   const local = localStorage.getItem(LOCAL_BRANDS_KEY);
   if (local === null) {
-    localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify(mockBrands));
-    return [...mockBrands];
+    localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify([]));
+    return [];
   }
   try {
     const parsed = JSON.parse(local);
-    return Array.isArray(parsed) ? parsed : [...mockBrands];
+    return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    return [...mockBrands];
+    return [];
   }
 };
 
@@ -433,14 +456,14 @@ export const getAllOrders = async () => {
     const local = localStorage.getItem(LOCAL_ORDERS_KEY);
     let orders = [];
     if (local === null) {
-      orders = [...mockOrders];
+      orders = [];
       localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify(orders));
     } else {
       try {
         const parsed = JSON.parse(local);
-        orders = Array.isArray(parsed) ? parsed : [...mockOrders];
+        orders = Array.isArray(parsed) ? parsed : [];
       } catch (e) {
-        orders = [...mockOrders];
+        orders = [];
       }
     }
     ordersList = orders.map(o => ({
@@ -665,14 +688,14 @@ export const getAllReviews = async () => {
   const local = localStorage.getItem(LOCAL_REVIEWS_KEY);
   let reviews = [];
   if (local === null) {
-    reviews = [...mockReviews];
+    reviews = [];
     localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify(reviews));
   } else {
     try {
       const parsed = JSON.parse(local);
-      reviews = Array.isArray(parsed) ? parsed : [...mockReviews];
+      reviews = Array.isArray(parsed) ? parsed : [];
     } catch (e) {
-      reviews = [...mockReviews];
+      reviews = [];
     }
   }
   return reviews.map(r => ({

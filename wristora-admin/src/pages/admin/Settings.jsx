@@ -13,11 +13,13 @@ import {
   MapPin, 
   Lock,
   Image as ImageIcon,
-  RotateCcw
+  RotateCcw,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import { getStoreSettings, updateStoreSettings, defaultHeroImages } from '../../firebase/dbService';
+import { getStoreSettings, updateStoreSettings, defaultHeroImages, clearAllDatabaseData } from '../../firebase/dbService';
 
 /**
  * AdminSettings Component
@@ -31,7 +33,29 @@ import { getStoreSettings, updateStoreSettings, defaultHeroImages } from '../../
  */
 function AdminSettings() {
   const [isSaving, setIsSaving] = useState(false);
+  const [isWiping, setIsWiping] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+
+  const handleWipeAllData = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to completely wipe all products, categories, brands, orders, and reviews to hand over a clean empty project to your client?\n\nThis action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setIsWiping(true);
+    try {
+      await clearAllDatabaseData();
+      setToastMessage('Factory Reset Complete: All collections & local cache wiped clean for client handoff.');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (err) {
+      console.error('Error wiping database:', err);
+      setToastMessage('Failed wiping database data.');
+    } finally {
+      setIsWiping(false);
+    }
+  };
 
   // 1. Store Identity State
   const [storeName, setStoreName] = useState('Wristora Haute Horlogerie');
@@ -442,6 +466,35 @@ function AdminSettings() {
                 className="w-4 h-4 rounded border-luxury-cream-300 text-luxury-charcoal-900 accent-luxury-charcoal-900 cursor-pointer"
               />
             </label>
+          </div>
+        </div>
+
+        {/* SECTION 6: Client Handover & Factory Reset */}
+        <div className="bg-red-50/60 p-4 sm:p-8 rounded-2xl border border-red-200 shadow-2xs space-y-4">
+          <div className="flex items-center space-x-2.5 pb-3 border-b border-red-200 text-red-900">
+            <AlertTriangle size={18} className="text-red-600" />
+            <h2 className="text-sm font-serif font-bold uppercase tracking-widest text-red-900">
+              6. Client Handover & Factory Reset
+            </h2>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-xs font-bold text-red-900">Wipe All Demo & Test Data</p>
+              <p className="text-[11px] text-red-700 mt-0.5 max-w-xl">
+                Completely flush all products, categories, brands, orders, customer reviews, and cart caches across local storage and Firestore. Use this when handing over a clean 0-item workspace to your client.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              onClick={handleWipeAllData}
+              isLoading={isWiping}
+              className="bg-red-700 hover:bg-red-800 text-white text-xs uppercase tracking-wider font-bold shrink-0 justify-center cursor-pointer border-none shadow-sm"
+            >
+              <Trash2 size={14} className="mr-1.5" />
+              Wipe All Data for Client Handover
+            </Button>
           </div>
         </div>
 

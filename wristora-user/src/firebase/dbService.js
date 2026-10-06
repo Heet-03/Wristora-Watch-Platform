@@ -41,9 +41,25 @@ const isFirebaseConfigured = () => {
   return db && apiKey && apiKey !== 'YOUR_FIREBASE_API_KEY' && apiKey.length > 10;
 };
 
+const HANDOVER_RESET_KEY = 'wristora_handover_reset_v3';
+
 // Seed Local Storage if empty or unconfigured
 const initializeLocalStorage = () => {
   try {
+    if (localStorage.getItem(HANDOVER_RESET_KEY) !== 'v3') {
+      localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify([]));
+      localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify([]));
+      localStorage.setItem(LOCAL_BRANDS_KEY, JSON.stringify([]));
+      localStorage.setItem(LOCAL_ORDERS_KEY, JSON.stringify([]));
+      localStorage.setItem(LOCAL_REVIEWS_KEY, JSON.stringify([]));
+      localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify([]));
+      localStorage.setItem(LOCAL_USERS_OVERRIDES_KEY, JSON.stringify([]));
+      localStorage.removeItem('wristora_cart');
+      localStorage.removeItem('wristora_direct_buy');
+      localStorage.setItem(HANDOVER_RESET_KEY, 'v3');
+      return;
+    }
+
     if (localStorage.getItem(LOCAL_PRODUCTS_KEY) === null) {
       localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify([]));
     }
@@ -109,11 +125,9 @@ export const getProducts = async () => {
     try {
       const q = query(collection(db, 'products'));
       const snapshot = await getDocs(q);
-      if (!snapshot.empty) {
-        const firestoreProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(firestoreProducts));
-        return firestoreProducts;
-      }
+      const firestoreProducts = snapshot.empty ? [] : snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(firestoreProducts));
+      return firestoreProducts;
     } catch (err) {
       console.warn('Firestore getProducts error, using local fallback:', err);
     }

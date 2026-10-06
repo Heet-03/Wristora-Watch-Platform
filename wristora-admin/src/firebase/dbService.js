@@ -85,7 +85,9 @@ export const getProducts = async () => {
       const q = query(collection(db, 'products'));
       const snapshot = await getDocs(q);
       if (!snapshot.empty) {
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const firestoreProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(firestoreProducts));
+        return firestoreProducts;
       }
     } catch (err) {
       console.warn('Firestore getProducts error, using local fallback:', err);
@@ -132,7 +134,7 @@ export const getProductById = async (id) => {
  * Add a new product
  */
 export const addProduct = async (productData) => {
-  const newId = `prod-${Date.now()}`;
+  const newId = productData.id || `prod-${Date.now()}`;
   const completeProduct = {
     id: newId,
     ...productData,
@@ -144,14 +146,13 @@ export const addProduct = async (productData) => {
   if (isFirebaseConfigured()) {
     try {
       await setDoc(doc(db, 'products', newId), completeProduct);
-      return completeProduct;
     } catch (err) {
       console.warn('Firestore addProduct error, using local fallback:', err);
     }
   }
 
   const products = await getProducts();
-  const updated = [completeProduct, ...products];
+  const updated = [completeProduct, ...products.filter(p => p.id !== newId)];
   localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(updated));
   return completeProduct;
 };
@@ -164,7 +165,6 @@ export const updateProduct = async (id, updateData) => {
     try {
       const docRef = doc(db, 'products', id);
       await updateDoc(docRef, updateData);
-      return { id, ...updateData };
     } catch (err) {
       console.warn('Firestore updateProduct error, using local fallback:', err);
     }
@@ -183,7 +183,6 @@ export const deleteProduct = async (id) => {
   if (isFirebaseConfigured()) {
     try {
       await deleteDoc(doc(db, 'products', id));
-      return true;
     } catch (err) {
       console.warn('Firestore deleteProduct error, using local fallback:', err);
     }

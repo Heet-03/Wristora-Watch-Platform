@@ -237,6 +237,34 @@ export const mockProducts = [
     isFeatured: true,
     isNewArrival: true,
     status: 'active'
+  },
+  {
+    id: 'prod-rm-11',
+    name: 'Richard Mille RM 11-03 Automatic Flyback Chronograph',
+    brand: 'Richard Mille',
+    category: 'Luxury',
+    price: 19500000,
+    discountPrice: 18900000,
+    stock: 2,
+    rating: 5.0,
+    numReviews: 24,
+    image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800',
+    images: [
+      'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&q=80&w=800',
+      'https://images.unsplash.com/photo-1547996160-81dfa63595aa?auto=format&fit=crop&q=80&w=800'
+    ],
+    description: 'The Richard Mille RM 11-03 features a tonneau-shaped Carbon TPT case, skeletonized automatic flyback chronograph movement, annual calendar, and titanium bridges designed for ultra-high performance.',
+    specifications: {
+      movement: 'Automatic Flyback Chronograph (RMAC3)',
+      caseSize: '50mm x 44.5mm',
+      caseMaterial: 'Carbon TPT & Titanium',
+      strapMaterial: 'Ventilated Rubber Strap',
+      waterResistance: '50m (167ft)',
+      warranty: '5 Years Richard Mille International'
+    },
+    isFeatured: true,
+    isNewArrival: true,
+    status: 'active'
   }
 ];
 
@@ -313,7 +341,8 @@ export const mockBrands = [
   { id: 'brand-6', name: 'Tissot', country: 'Switzerland', founded: '1853' },
   { id: 'brand-7', name: 'Patek Philippe', country: 'Geneva, Switzerland', founded: '1839' },
   { id: 'brand-8', name: 'Audemars Piguet', country: 'Le Brassus, Switzerland', founded: '1875' },
-  { id: 'brand-9', name: 'i-Watch', country: 'California, USA', founded: '2015' }
+  { id: 'brand-9', name: 'i-Watch', country: 'California, USA', founded: '2015' },
+  { id: 'brand-10', name: 'Richard Mille', country: 'Les Breuleux, Switzerland', founded: '2001' }
 ];
 
 export const mockReviews = [

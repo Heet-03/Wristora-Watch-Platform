@@ -18,7 +18,7 @@ function EmptyState({
 }) {
   return (
     <div className={`flex flex-col items-center justify-center text-center p-12 bg-luxury-cream-50 rounded-lg border border-luxury-cream-200 max-w-md mx-auto space-y-5 ${className}`}>
-      
+
       {/* Icon Frame */}
       <div className="w-16 h-16 bg-luxury-cream-200 rounded-full flex items-center justify-center text-luxury-gold-400">
         <Icon size={28} strokeWidth={1.5} />
